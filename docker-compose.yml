@@ -1,0 +1,33 @@
+services:
+  cron-agent:
+    build: .
+    image: homelab-cron-agent
+    container_name: cron-agent
+    restart: unless-stopped
+    ports:
+      - "5231:8080"
+    volumes:
+      - ./data:/app/data
+    environment:
+      # Atlas Rig OIDC — DISABLED until the client is registered and scope granted.
+      # To enable: set Auth__Disabled: "false", fill RequiredScopes, and build with
+      # real VITE_AR_AUTH_* args.
+      Auth__Disabled: "true"
+      Auth__Authority: https://auth.adolfrey.com/api
+      Auth__RequiredScopes: PLACEHOLDER_SCOPE
+      # Confidential client credentials used for outbound client_credentials
+      # token requests when dispatching Atlas Rig (arauth) jobs. Set both to
+      # enable arauth dispatch; each job only stores its target scope.
+      Auth__ClientId: null
+      Auth__ClientSecret: null
+      # Scheduler tuning
+      Scheduler__PollSeconds: "15"
+      Scheduler__HttpTimeoutSeconds: "60"
+      Scheduler__RetryBaseDelayMs: "5000"
+      # Optional alert webhook (e.g. ntfy/Discord)
+      Alerts__WebhookUrl: null
+      # Frontend build-time values are baked into wwwroot at docker build;
+      # pass them via build args if the client id changes:
+      #   build:
+      #     args:
+      #       VITE_AR_AUTH_CLIENT_ID: your-client-id

@@ -1,0 +1,23 @@
+## .NET build output
+**/bin/
+**/obj/
+**/publish/
+
+## Node
+**/node_modules/
+src/Web/dist/
+
+## Database (SQLite file lives on a volume)
+data/
+*.db
+*.db-shm
+*.db-wal
+
+## IDE/tooling
+.vs/
+.idea/
+*.user
+_tool-output/
+src/Api/wwwroot/
+src/Api/appsettings.Development.json
+src/Web/.env.development

@@ -1,0 +1,42 @@
+{
+  "name": "homelab-cron-agent",
+  "image": "mcr.microsoft.com/devcontainers/dotnet:10.0",
+  "features": {
+    "ghcr.io/devcontainers/features/node:1": {
+      "version": "24"
+    },
+    "ghcr.io/devcontainers/features/git:1": {
+      "version": "latest"
+    }
+  },
+  "workspaceMount": "source=${localWorkspaceFolder},target=/workspace,type=bind",
+  "workspaceFolder": "/workspace",
+  "mounts": [
+    "source=${localEnv:HOME}/.local/share/opencode,target=/home/vscode/.local/share/opencode,type=bind"
+  ],
+  "postCreateCommand": "bash .devcontainer/post-create.sh",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-dotnettools.csdevkit",
+        "ms-dotnettools.csharp",
+        "dbaeumer.vscode-eslint",
+        "esbenp.prettier-vscode",
+        "editorconfig.editorconfig"
+      ]
+    }
+  },
+  "forwardPorts": [5147, 5173],
+  "portsAttributes": {
+    "5147": { "label": "API + built SPA", "onAutoForward": "notify" },
+    "5173": { "label": "Vite dev server (proxies /api → 5147)", "onAutoForward": "silent" }
+  },
+  "containerEnv": {
+    "Auth__Disabled": "true",
+    "Database__Path": "/workspace/data/cron.db"
+  },
+  "remoteEnv": {
+    "PATH": "/home/vscode/.opencode/bin:${containerEnv:PATH}"
+  },
+  "remoteUser": "vscode"
+}

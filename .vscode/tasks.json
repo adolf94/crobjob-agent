@@ -1,0 +1,46 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "build api",
+      "type": "shell",
+      "command": "dotnet build",
+      "problemMatcher": ["$msCompile"],
+      "group": { "kind": "build", "isDefault": true }
+    },
+    {
+      "label": "test",
+      "type": "shell",
+      "command": "dotnet test tests/Api.Tests",
+      "problemMatcher": []
+    },
+    {
+      "label": "run api",
+      "type": "shell",
+      "command": "dotnet run --project src/Api",
+      "isBackground": true,
+      "problemMatcher": []
+    },
+    {
+      "label": "run web (vite)",
+      "type": "shell",
+      "command": "npm run dev -- --host",
+      "options": { "cwd": "${workspaceFolder}/src/Web" },
+      "isBackground": true,
+      "problemMatcher": []
+    },
+    {
+      "label": "dev: api + web",
+      "dependsOrder": "parallel",
+      "dependsOn": ["run api", "run web (vite)"],
+      "problemMatcher": []
+    },
+    {
+      "label": "build spa into api",
+      "type": "shell",
+      "command": "npm run build",
+      "options": { "cwd": "${workspaceFolder}/src/Web" },
+      "problemMatcher": []
+    }
+  ]
+}

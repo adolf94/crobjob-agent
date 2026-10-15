@@ -1,0 +1,8 @@
+**/bin/
+**/obj/
+**/node_modules/
+src/Web/dist/
+src/Api/wwwroot/
+data/
+.git/
+*.md
