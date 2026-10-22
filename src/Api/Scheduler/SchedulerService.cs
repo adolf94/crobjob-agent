@@ -2,6 +2,15 @@ using Api.Database;
 
 namespace Api.Scheduler;
 
+/// <summary>
+/// Polls every PollSeconds, but avoids database access on idle cycles:
+///   - Only one value is cached: the earliest next run time across all enabled jobs.
+///   - Mutations (create/update/delete) bump an in-memory <see cref="JobRepository.Version"/>,
+///     so the cache is invalidated without touching the database.
+///   - When the cached time expires, a single GetAll() re-syncs everything and due ticks
+///     are dispatched; each dispatched job is re-fetched (GetById) first so deletions
+///     and edits made mid-cycle are honoured.
+/// </summary>
 public class SchedulerService(
     JobRepository jobs,
     RunRepository runs,
@@ -10,7 +19,8 @@ public class SchedulerService(
     SchedulerOptions options,
     ILogger<SchedulerService> logger) : BackgroundService
 {
-    private readonly HashSet<long> _inFlight = new();
+    private DateTime _nextRunUtc = DateTime.MinValue; // cached earliest next occurrence (UTC)
+    private long _seenVersion = -1;                  // -1 = cache not yet built
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -46,41 +56,42 @@ public class SchedulerService(
 
     internal async Task ProcessAllAsync(CancellationToken ct)
     {
-        var now = time.GetUtcNow();
-        var enabledJobs = jobs.GetAll().Where(j => j.Enabled).ToList();
+        var now = time.GetUtcNow().UtcDateTime;
 
-        foreach (var job in enabledJobs)
+        // Fast path: no mutations since the last sync and the cached earliest
+        // run is still in the future -> zero database access.
+        var version = jobs.Version;
+        if (_seenVersion == version && now < _nextRunUtc)
+            return;
+
+        _seenVersion = version;
+        var next = DateTime.MaxValue;
+
+        foreach (var job in jobs.GetAll().Where(j => j.Enabled).ToList())
         {
             if (ct.IsCancellationRequested)
                 break;
 
-            lock (_inFlight)
-            {
-                if (!_inFlight.Add(job.Id))
-                    continue;
-            }
-
             try
             {
-                await ProcessJobAsync(job, now, ct);
+                var cursor = await ProcessJobAsync(job, now, ct) ?? now;
+                var jobNext = ScheduleMath.GetNextRun(job.CronExpression, job.Timezone, cursor) ?? DateTime.MaxValue;
+                if (jobNext < next)
+                    next = jobNext;
             }
             catch (Exception ex)
             {
                 logger.LogError(ex, "Processing job '{JobName}' (#{JobId}) failed", job.Name, job.Id);
-            }
-            finally
-            {
-                lock (_inFlight)
-                {
-                    _inFlight.Remove(job.Id);
-                }
+                next = Min(next, now.AddSeconds(options.PollSeconds)); // retry next cycle
             }
         }
+
+        _nextRunUtc = next;
     }
 
-    internal async Task ProcessJobAsync(CronJob job, DateTimeOffset nowOffset, CancellationToken ct)
+    /// <summary>Dispatches all due ticks for one job. Returns the new last-dispatched cursor (null = nothing dispatched).</summary>
+    internal async Task<DateTime?> ProcessJobAsync(CronJob job, DateTime now, CancellationToken ct)
     {
-        var now = nowOffset.UtcDateTime;
         var last = job.LastDispatchedTickUtc;
 
         if (last is null)
@@ -89,12 +100,12 @@ public class SchedulerService(
             if (dropped > 0)
                 RecordSkipped(job, now, $"Outside catch-up window ({dropped} tick(s) dropped)");
             jobs.SetLastDispatched(job.Id, now);
-            return;
+            return now;
         }
 
         var ticks = ScheduleMath.GetDueTicks(job.CronExpression, job.Timezone, last.Value, now, job.CatchupDays, options.MaxTicksPerCycle);
         if (ticks.Count == 0)
-            return;
+            return null;
 
         logger.LogInformation("Job '{JobName}' (#{JobId}) has {Count} due tick(s)", job.Name, job.Id, ticks.Count);
 
@@ -103,6 +114,15 @@ public class SchedulerService(
             if (ct.IsCancellationRequested)
                 break;
 
+            // Narrow the delete-mid-dispatch window: inserting a run for a job that
+            // no longer exists would violate the runs -> jobs foreign key.
+            if (jobs.GetById(job.Id) is null)
+            {
+                logger.LogInformation("Job '{JobName}' (#{JobId}) was deleted mid-cycle; skipping {Remaining} remaining tick(s)",
+                    job.Name, job.Id, ticks.Count - ticks.IndexOf(tick) - 1);
+                return ticks[Math.Max(0, ticks.IndexOf(tick) - 1)];
+            }
+
             var result = await dispatcher.DispatchAsync(job, tick, ct);
             jobs.SetLastDispatched(job.Id, tick);
 
@@ -110,7 +130,11 @@ public class SchedulerService(
                 logger.LogWarning("Tick {Tick:O} for job '{JobName}' finished unsuccessfully after {Attempts} attempt(s)",
                     tick, job.Name, result.Attempts);
         }
+
+        return ticks[^1];
     }
+
+    private static DateTime Min(DateTime a, DateTime b) => a < b ? a : b;
 
     private void RecordSkipped(CronJob job, DateTime scheduledFor, string reason)
     {

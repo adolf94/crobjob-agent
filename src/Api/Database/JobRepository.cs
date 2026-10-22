@@ -5,8 +5,19 @@ namespace Api.Database;
 public class JobRepository
 {
     private readonly DatabaseInitializer _db;
+    private long _version;
 
     public JobRepository(DatabaseInitializer db) => _db = db;
+
+    /// <summary>
+    /// In-memory change counter, bumped on every schedule-affecting mutation
+    /// (insert/update/delete). Lets the scheduler detect "something changed"
+    /// without touching the database. Intentionally NOT bumped by
+    /// SetLastDispatched, which is a scheduler-internal cursor write.
+    /// </summary>
+    public long Version => Interlocked.Read(ref _version);
+
+    private void BumpVersion() => Interlocked.Increment(ref _version);
 
     public List<CronJob> GetAll()
     {
@@ -37,6 +48,7 @@ public class JobRepository
             """;
         FillParams(cmd, job);
         job.Id = cmd.ExecuteScalarLong();
+        BumpVersion();
         return job;
     }
 
@@ -53,6 +65,7 @@ public class JobRepository
         FillParams(cmd, job);
         cmd.Parameters.AddWithValue("@id", job.Id);
         cmd.ExecuteNonQuery();
+        BumpVersion();
     }
 
     public void SetLastDispatched(long id, DateTime tickUtc)
@@ -72,6 +85,7 @@ public class JobRepository
         cmd.CommandText = "DELETE FROM jobs WHERE id = @id";
         cmd.Parameters.AddWithValue("@id", id);
         cmd.ExecuteNonQuery();
+        BumpVersion();
     }
 
     private static void FillParams(SqliteCommand cmd, CronJob job)
