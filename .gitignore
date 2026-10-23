@@ -7,6 +7,9 @@
 **/node_modules/
 src/Web/dist/
 
+## Compose secrets (deploy host keeps the real .env next to docker-compose.yml)
+.env
+
 ## Database (SQLite file lives on a volume)
 data/
 *.db

@@ -1,33 +1,61 @@
+# Deployed by gh_webhooks: it injects IMAGE=ghcr.io/adolf94/cron-agent:<sha>
+# and runs `docker compose pull && docker compose up -d --no-deps` here.
 services:
   cron-agent:
+    image: ${IMAGE:-ghcr.io/adolf94/cron-agent:latest}
+    container_name: cron-agent
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:5231:8080"   # loopback only — Caddy reaches it via the proxy net
+    volumes:
+      - ./data:/app/data        # SQLite (WAL mode) — copy while stopped, or .backup sidecar
+    env_file:
+      - .env                    # source of tweaks/secrets — see .env.example; empty file is fine
+    environment:
+      # Values below are interpolated from .env (compose auto-loads it);
+      # the inline defaults match current placeholder state.
+      # Atlas Rig OIDC — DISABLED until the client is registered and scope granted.
+      # To enable: set AUTH_DISABLED=false, fill AUTH_REQUIRED_SCOPES, and push a
+      # rebuild with real VITE_AR_AUTH_* build args.
+      Auth__Disabled: ${AUTH_DISABLED:-true}
+      Auth__Authority: ${AUTH_AUTHORITY:-https://auth.adolfrey.com/api}
+      Auth__RequiredScopes: ${AUTH_REQUIRED_SCOPES:-PLACEHOLDER_SCOPE}
+      # Confidential client credentials used for outbound client_credentials
+      # token requests when dispatching Atlas Rig (arauth) jobs. Set both to
+      # enable arauth dispatch; each job only stores its target scope.
+      # Empty string = unset (app checks IsNullOrWhiteSpace).
+      Auth__ClientId: ${AUTH_CLIENT_ID:-}
+      Auth__ClientSecret: ${AUTH_CLIENT_SECRET:-}
+      # Scheduler tuning
+      Scheduler__PollSeconds: ${SCHEDULER_POLL_SECONDS:-15}
+      Scheduler__HttpTimeoutSeconds: ${SCHEDULER_HTTP_TIMEOUT_SECONDS:-60}
+      Scheduler__RetryBaseDelayMs: ${SCHEDULER_RETRY_BASE_DELAY_MS:-5000}
+      # Optional alert webhook (e.g. ntfy/Discord). Empty = disabled.
+      Alerts__WebhookUrl: ${ALERTS_WEBHOOK_URL:-}
+    # healthcheck lives in the Dockerfile (curl /healthz); compose picks it up
+    networks: [default, proxy]  # proxy = shared external net so Caddy can resolve "cron-agent"
+
+  # local builds only — webhook deploys run --no-deps so this never starts there
+  dev:
+    profiles: [dev]
     build: .
     image: homelab-cron-agent
     container_name: cron-agent
     restart: unless-stopped
     ports:
-      - "5231:8080"
+      - "127.0.0.1:5231:8080"
     volumes:
       - ./data:/app/data
+    env_file:
+      - .env
     environment:
-      # Atlas Rig OIDC — DISABLED until the client is registered and scope granted.
-      # To enable: set Auth__Disabled: "false", fill RequiredScopes, and build with
-      # real VITE_AR_AUTH_* args.
       Auth__Disabled: "true"
       Auth__Authority: https://auth.adolfrey.com/api
-      Auth__RequiredScopes: PLACEHOLDER_SCOPE
-      # Confidential client credentials used for outbound client_credentials
-      # token requests when dispatching Atlas Rig (arauth) jobs. Set both to
-      # enable arauth dispatch; each job only stores its target scope.
-      Auth__ClientId: null
-      Auth__ClientSecret: null
-      # Scheduler tuning
       Scheduler__PollSeconds: "15"
       Scheduler__HttpTimeoutSeconds: "60"
       Scheduler__RetryBaseDelayMs: "5000"
-      # Optional alert webhook (e.g. ntfy/Discord)
-      Alerts__WebhookUrl: null
-      # Frontend build-time values are baked into wwwroot at docker build;
-      # pass them via build args if the client id changes:
-      #   build:
-      #     args:
-      #       VITE_AR_AUTH_CLIENT_ID: your-client-id
+    networks: [default, proxy]
+
+networks:
+  proxy:
+    external: true
