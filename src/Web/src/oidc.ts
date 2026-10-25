@@ -7,6 +7,11 @@ export const CLIENT_ID = import.meta.env.VITE_AR_AUTH_CLIENT_ID ?? 'PLACEHOLDER_
 export const SCOPE = import.meta.env.VITE_AR_AUTH_SCOPE ?? 'openid profile email';
 export const PROTOTYPE = import.meta.env.VITE_AR_AUTH_PROTOTYPE === 'true';
 
+// Vite sets BASE_URL from its `base` config (APP_ROOT in CI/Docker), e.g.
+// "/cron-agent/". API endpoints live under the app root + "api".
+export const BASE_URL = import.meta.env.BASE_URL.replace(/\/+$/, '') || '';
+export const API_BASE = `${BASE_URL}/api`;
+
 const userManager = new UserManager({
   authority: AUTHORITY,
   client_id: CLIENT_ID,
@@ -34,15 +39,4 @@ export async function completeLogin(): Promise<User> {
 
 export async function logout(): Promise<void> {
   await userManager.signoutRedirect();
-}
-
-export async function apiFetch(path: string, user: User | null, init?: RequestInit): Promise<Response> {
-  const headers = new Headers(init?.headers);
-  if (user?.access_token) headers.set('Authorization', `Bearer ${user.access_token}`);
-  if (init?.body) headers.set('Content-Type', 'application/json');
-  const resp = await fetch(path, { ...init, headers });
-  if (resp.status === 401) {
-    await login();
-  }
-  return resp;
 }

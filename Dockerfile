@@ -15,9 +15,12 @@ WORKDIR /web
 ARG VITE_AR_AUTH_AUTHORITY=https://auth.adolfrey.com/api
 ARG VITE_AR_AUTH_CLIENT_ID=PLACEHOLDER_CLIENT_ID
 ARG VITE_AR_AUTH_SCOPE=openid profile email
+# Root build directory (base path) for the web app, e.g. "/cron-agent/"
+ARG APP_ROOT=/cron-agent/
 ENV VITE_AR_AUTH_AUTHORITY=$VITE_AR_AUTH_AUTHORITY \
     VITE_AR_AUTH_CLIENT_ID=$VITE_AR_AUTH_CLIENT_ID \
-    VITE_AR_AUTH_SCOPE=$VITE_AR_AUTH_SCOPE
+    VITE_AR_AUTH_SCOPE=$VITE_AR_AUTH_SCOPE \
+    APP_ROOT=$APP_ROOT
 
 COPY src/Web/package.json src/Web/package-lock.json ./
 RUN npm ci

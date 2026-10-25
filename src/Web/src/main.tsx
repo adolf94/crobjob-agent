@@ -1,11 +1,14 @@
 import React, { useEffect, useState } from 'react';
 import ReactDOM from 'react-dom/client';
 import { BrowserRouter, Routes, Route, Link, useNavigate } from 'react-router-dom';
-import { getUser, login, logout, completeLogin, type User } from './oidc';
+import { getUser, login, logout, completeLogin, BASE_URL, type User } from './oidc';
 import JobsList from './pages/JobsList';
 import JobEdit from './pages/JobEdit';
 import JobHistory from './pages/JobHistory';
 import './index.css';
+
+// React-router basename derived from the app root (APP_ROOT in CI/Docker).
+const basename = BASE_URL || '/';
 
 type AuthState = { user: User | null; loading: boolean; setUser: (user: User | null) => void };
 
@@ -58,7 +61,7 @@ function App() {
 
   return (
     <AuthCtx.Provider value={{ ...state, setUser }}>
-      <BrowserRouter>
+      <BrowserRouter basename={basename}>
         <Shell>
           <Routes>
             <Route path="/" element={<JobsList />} />

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { useAuth } from '../main';
-import { apiFetch } from '../oidc';
+import { api } from '../lib/api';
 import { type RunRecord } from '../types';
 
 const fmt = (iso?: string | null) => (iso ? new Date(iso).toLocaleString() : '—');
@@ -13,9 +13,9 @@ export default function JobHistory() {
 
   useEffect(() => {
     if (!user || !id) return;
-    apiFetch(`/api/jobs/${id}/runs?limit=100`, user).then(async (r) => {
-      if (r.ok) setRuns(await r.json());
-    });
+    api.get<RunRecord[]>(`/jobs/${id}/runs?limit=100`)
+      .then(({ data }) => setRuns(data))
+      .catch(() => { /* history stays empty on failure */ });
   }, [id, user]);
 
   if (!user) return <p>Please log in.</p>;

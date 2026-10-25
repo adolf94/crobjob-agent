@@ -3,7 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import CronField from '../components/CronField';
 import { validateCron } from '../lib/cron';
 import { useAuth } from '../main';
-import { apiFetch } from '../oidc';
+import { api, errData, errStatus } from '../lib/api';
 import { type JobDto, type JobInput } from '../types';
 
 const JOB_TIMEZONE = 'Asia/Manila';
@@ -33,9 +33,7 @@ export default function JobEdit() {
 
   useEffect(() => {
     if (!isEdit || !user) return;
-    apiFetch(`/api/jobs/${id}`, user).then(async (r) => {
-      if (!r.ok) return;
-      const job: JobDto = await r.json();
+    api.get<JobDto>(`/jobs/${id}`).then(({ data: job }) => {
       setForm({
         name: job.name,
         targetUrl: job.targetUrl,
@@ -48,7 +46,7 @@ export default function JobEdit() {
         authMode: job.authMode,
         authScope: job.authScope ?? '',
       });
-    });
+    }).catch(() => { /* leave defaults if the job can't be loaded */ });
   }, [id, user, isEdit]);
 
   const set = (field: keyof JobInput, value: string | number | boolean) =>
@@ -63,17 +61,18 @@ export default function JobEdit() {
     }
     setSaving(true);
     setErrors([]);
-    const resp = await apiFetch(isEdit ? `/api/jobs/${id}` : '/api/jobs', user, {
-      method: isEdit ? 'PUT' : 'POST',
-      body: JSON.stringify(form),
-    });
-    setSaving(false);
-    if (resp.ok) { nav('/'); return; }
-    const problem = await resp.json().catch(() => null);
-    if (problem?.errors) {
-      setErrors(Object.values(problem.errors as Record<string, string[]>).flat());
-    } else {
-      setErrors([`Save failed (${resp.status})`]);
+    try {
+      await (isEdit ? api.put(`/jobs/${id}`, form) : api.post('/jobs', form));
+      nav('/');
+    } catch (err) {
+      const problem = errData(err) as { errors?: Record<string, string[]> } | null;
+      if (problem?.errors) {
+        setErrors(Object.values(problem.errors).flat());
+      } else {
+        setErrors([`Save failed (${errStatus(err)})`]);
+      }
+    } finally {
+      setSaving(false);
     }
   };
 

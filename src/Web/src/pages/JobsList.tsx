@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../main';
-import { apiFetch } from '../oidc';
+import { api, errStatus } from '../lib/api';
 import { type JobDto, type RunResult } from '../types';
 
 const fmt = (iso?: string | null) => (iso ? new Date(iso).toLocaleString() : '—');
@@ -14,31 +14,41 @@ export default function JobsList() {
 
   const load = async () => {
     if (!user) return;
-    const resp = await apiFetch('/api/jobs', user);
-    if (resp.ok) setJobs(await resp.json());
-    else setError(`Failed to load jobs (${resp.status})`);
+    try {
+      const { data } = await api.get<JobDto[]>('/jobs');
+      setJobs(data);
+    } catch (err) {
+      setError(`Failed to load jobs (${errStatus(err)})`);
+    }
   };
 
   useEffect(() => { load(); }, [user]);
 
   const runNow = async (job: JobDto) => {
     setFlash('Running…');
-    const resp = await apiFetch(`/api/jobs/${job.id}/run`, user, { method: 'POST' });
-    const result: RunResult = await resp.json();
-    setFlash(result.success
-      ? `OK (${result.attempts} attempt(s), status ${result.http_status})`
-      : `Failed after ${result.attempts} attempt(s): ${result.error ?? 'unknown'}`);
+    try {
+      const { data: result } = await api.post<RunResult>(`/jobs/${job.id}/run`);
+      setFlash(result.success
+        ? `OK (${result.attempts} attempt(s), status ${result.http_status})`
+        : `Failed after ${result.attempts} attempt(s): ${result.error ?? 'unknown'}`);
+    } catch (err) {
+      setFlash(`Run failed (${errStatus(err)})`);
+    }
     await load();
   };
 
   const toggle = async (job: JobDto) => {
-    await apiFetch(`/api/jobs/${job.id}`, user, { method: 'PUT', body: JSON.stringify({ ...job, enabled: !job.enabled }) });
+    try {
+      await api.put(`/jobs/${job.id}`, { ...job, enabled: !job.enabled });
+    } catch { /* banner comes from the next load */ }
     await load();
   };
 
   const remove = async (job: JobDto) => {
     if (!confirm(`Delete job "${job.name}"?`)) return;
-    await apiFetch(`/api/jobs/${job.id}`, user, { method: 'DELETE' });
+    try {
+      await api.delete(`/jobs/${job.id}`);
+    } catch { /* banner comes from the next load */ }
     await load();
   };
 
