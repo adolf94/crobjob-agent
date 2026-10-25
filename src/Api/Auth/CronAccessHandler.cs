@@ -19,7 +19,11 @@ public class CronAccessHandler(AuthOptions options) : AuthorizationHandler<Requi
             return Task.CompletedTask;
 
         var scopes = options.RequiredScopes.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-        if (scopes.Length == 0 || scopes.Any(s => context.User.HasClaim("scope", s)))
+        // The IdP issues scope as a single space-separated claim value, so
+        // each granted scope must be split out before comparing.
+        var granted = context.User.FindAll("scope")
+            .SelectMany(c => c.Value.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
+        if (scopes.Length == 0 || scopes.Any(s => granted.Contains(s, StringComparer.Ordinal)))
             context.Succeed(requirement);
 
         return Task.CompletedTask;
