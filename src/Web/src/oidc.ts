@@ -12,10 +12,15 @@ export const PROTOTYPE = import.meta.env.VITE_AR_AUTH_PROTOTYPE === 'true';
 export const BASE_URL = import.meta.env.BASE_URL.replace(/\/+$/, '') || '';
 export const API_BASE = `${BASE_URL}/api`;
 
+// OIDC redirect_uri lives under the app root, e.g.
+// https://host/cron-agent/callback. Derived from the runtime origin so it
+// follows APP_ROOT automatically (dev at "/" gives http://localhost:5173/callback).
+export const REDIRECT_URI = `${window.location.origin}${BASE_URL}/callback`;
+
 const userManager = new UserManager({
   authority: AUTHORITY,
   client_id: CLIENT_ID,
-  redirect_uri:import.meta.env.VITE_AR_AUTH_REDIRECT_URI ?? 'PLACEHOLDER_REDIRECT_URI',
+  redirect_uri: REDIRECT_URI,
   response_type: 'code',
   scope: SCOPE,
   userStore: new WebStorageStateStore({ store: window.sessionStorage }),
