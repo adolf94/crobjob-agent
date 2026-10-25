@@ -45,8 +45,22 @@ builder.Services.AddOptions<AlertOptions>()
 builder.Services.AddSingleton(sp => sp.GetRequiredService<IOptions<AuthOptions>>().Value);
 builder.Services.AddSingleton<IAuthorizationHandler, CronAccessHandler>();
 
+var authOptions = builder.Configuration.GetSection("Auth").Get<AuthOptions>() ?? new AuthOptions();
+var authAudiences = authOptions.Audience.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
-    .AddJwtBearer(o => o.Authority = builder.Configuration.GetSection("Auth").Get<AuthOptions>()?.Authority);
+    .AddJwtBearer(o =>
+    {
+        o.Authority = authOptions.Authority;
+        o.TokenValidationParameters = new Microsoft.IdentityModel.Tokens.TokenValidationParameters
+        {
+            // Atlas Rig issues tokens with an audience the API doesn't control;
+            // set Auth__Audience (space-separated) to enforce one, otherwise
+            // accept any aud — issuer and signature are still validated.
+            ValidateAudience = authAudiences.Length > 0,
+            ValidAudiences = authAudiences,
+        };
+    });
 
 builder.Services.AddAuthorization(o =>
 {

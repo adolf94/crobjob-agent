@@ -20,6 +20,9 @@ services:
       Auth__Disabled: ${AUTH_DISABLED:-true}
       Auth__Authority: ${AUTH_AUTHORITY:-https://auth.adolfrey.com/api}
       Auth__RequiredScopes: ${AUTH_REQUIRED_SCOPES:-PLACEHOLDER_SCOPE}
+      # Accepted JWT audiences (space-separated). Empty = skip audience
+      # validation; set it to the token's aud (e.g. cron-agent-ui) to enforce.
+      Auth__Audience: ${AUTH_AUDIENCE:-}
       # Confidential client credentials used for outbound client_credentials
       # token requests when dispatching Atlas Rig (arauth) jobs. Set both to
       # enable arauth dispatch; each job only stores its target scope.
