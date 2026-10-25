@@ -99,6 +99,12 @@ builder.Services.Configure<DatabaseOptions>(o => o.Path = dbPath);
 
 var app = builder.Build();
 
+// Static assets (SPA shell + js/css) are public: serve them before
+// authentication/authorization. Endpoint routing would otherwise select the
+// fallback endpoint for asset paths and the fallback policy would 401 them
+// before the static-file middleware ever runs.
+ServeWeb(app);
+
 app.UseAuthentication();
 app.UseAuthorization();
 
@@ -119,8 +125,6 @@ if (app.Environment.IsEnvironment("Testing"))
         await res.WriteAsync(req.Headers.Authorization.ToString());
     });
 }
-
-ServeWeb(app);
 
 app.Run();
 
