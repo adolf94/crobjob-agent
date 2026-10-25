@@ -93,7 +93,7 @@ jobs:
           platforms: linux/amd64
           build-args: |
             VITE_AR_AUTH_CLIENT_ID=cron-agent-ui
-            VITE_AR_AUTH_SCOPE=openid profile email api:\\cron-agent\user
+            VITE_AR_AUTH_SCOPE=openid profile email api://cron-agent/user
             APP_ROOT=${{ inputs.app_root || '/cron-agent' }}
 
       - name: Image digest
