@@ -136,7 +136,9 @@ static void ServeWeb(WebApplication app)
 
     app.UseDefaultFiles();
     app.UseStaticFiles();
-    app.MapFallbackToFile("index.html");
+    // The SPA shell must be reachable unauthenticated — the OIDC login flow
+    // starts from it. The fallback policy still guards the API endpoints.
+    app.MapFallbackToFile("index.html").AllowAnonymous();
 }
 
 public partial class Program { }
